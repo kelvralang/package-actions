@@ -1,0 +1,190 @@
+name: Native package CI
+
+on:
+  workflow_call:
+    inputs:
+      package_name:
+        description: Package manifest name.
+        required: true
+        type: string
+      runtime_ref:
+        description: moglang/mog Git ref to build and test against.
+        default: main
+        type: string
+      targets:
+        description: JSON array of supported target names.
+        default: '["linux-x86_64-gnu","linux-arm64-gnu","macos-arm64"]'
+        type: string
+      working_directory:
+        default: .
+        type: string
+      test_fixture:
+        description: Project manifest template used for the isolated path-dependency test.
+        default: .github/package-test.toml.in
+        type: string
+      test_command:
+        description: Optional command replacing the standard isolated test.
+        default: ""
+        type: string
+      system_dependencies_command:
+        default: ""
+        type: string
+      runtime_cmake_flags:
+        default: ""
+        type: string
+      package_cmake_flags:
+        default: ""
+        type: string
+      artifact_path:
+        description: Built module path relative to the package build directory.
+        default: package.so
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.targets.outputs.value }}
+    steps:
+      - id: targets
+        name: Resolve target runners
+        env:
+          TARGETS: ${{ inputs.targets }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          value="$(jq -ce '
+            if type != "array" or length == 0 then error("targets must be a non-empty array") else . end
+            | map(
+                if . == "linux-x86_64-gnu" then {target: ., runner: "ubuntu-latest"}
+                elif . == "linux-arm64-gnu" then {target: ., runner: "ubuntu-24.04-arm"}
+                elif . == "macos-arm64" then {target: ., runner: "macos-14"}
+                else error("unsupported target: \(.)") end
+              )
+            | {include: .}
+          ' <<< "$TARGETS")"
+          echo "value=$value" >> "$GITHUB_OUTPUT"
+
+  compatibility:
+    needs: matrix
+    name: ${{ matrix.target }} / Mog ${{ inputs.runtime_ref }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.value) }}
+    env:
+      PACKAGE_NAME: ${{ inputs.package_name }}
+      WORKING_DIRECTORY: ${{ inputs.working_directory }}
+      TEST_COMMAND: ${{ inputs.test_command }}
+      SYSTEM_DEPENDENCIES_COMMAND: ${{ inputs.system_dependencies_command }}
+      RUNTIME_CMAKE_FLAGS: ${{ inputs.runtime_cmake_flags }}
+      PACKAGE_CMAKE_FLAGS: ${{ inputs.package_cmake_flags }}
+      TEST_FIXTURE: ${{ inputs.test_fixture }}
+      ARTIFACT_PATH: ${{ inputs.artifact_path }}
+      TARGET: ${{ matrix.target }}
+    steps:
+      - name: Check out package
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Check out Mog runtime
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          repository: moglang/mog
+          ref: ${{ inputs.runtime_ref }}
+          path: .package-actions-runtime/mog
+      - name: Verify package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$WORKING_DIRECTORY"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          test -n "$version"
+          test "$name" = "$PACKAGE_NAME"
+          test "$kind" = native
+          test -f LICENSE
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f NativePackageAPI.hpp
+          test -f package.api.mog
+          test -f tests/main.mog
+          grep -Fq "## $version" CHANGELOG.md
+          grep -q '^```mog' README.md
+          grep -Fq "\"$TARGET\"" mog.toml
+          case "$license" in
+            GPL-3.0-only) grep -Fq "GNU GENERAL PUBLIC LICENSE" LICENSE ;;
+            MIT) grep -Fq "MIT License" LICENSE ;;
+            *) echo "Unsupported or unchecked license declaration: $license" >&2; exit 1 ;;
+          esac
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            test "${GITHUB_REF_NAME#v}" = "$version"
+          fi
+      - name: Install system dependencies
+        if: inputs.system_dependencies_command != ''
+        shell: bash
+        run: bash -euo pipefail -c "$SYSTEM_DEPENDENCIES_COMMAND"
+      - name: Build native package
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -a extra_flags <<< "$PACKAGE_CMAKE_FLAGS"
+          cmake -S "$WORKING_DIRECTORY" -B .package-actions-build/package \
+            -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
+          cmake --build .package-actions-build/package --config Release --parallel
+      - name: Build Mog runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -a extra_flags <<< "$RUNTIME_CMAKE_FLAGS"
+          cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
+          cmake --build .package-actions-runtime/mog/build --parallel
+      - name: Validate and test package
+        shell: bash
+        env:
+          MOG_RUNTIME: ${{ github.workspace }}/.package-actions-runtime/mog/build/interpreter
+          PACKAGE_DIR: ${{ github.workspace }}/${{ inputs.working_directory }}
+          BUILD_DIR: ${{ github.workspace }}/.package-actions-build/package
+        run: |
+          set -euo pipefail
+          if [[ -n "$TEST_COMMAND" ]]; then
+            bash -euo pipefail -c "$TEST_COMMAND"
+          else
+            module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$PACKAGE_DIR/mog.toml" | head -n 1)"
+            version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$PACKAGE_DIR/mog.toml" | head -n 1)"
+            stage="$RUNNER_TEMP/packages/$module"
+            project="$RUNNER_TEMP/package-test"
+            mkdir -p "$(dirname "$stage")" "$project"
+            rsync -a --exclude .git --exclude .package-actions-runtime --exclude .package-actions-build --exclude build \
+              "$PACKAGE_DIR/" "$stage/"
+            if [[ "$RUNNER_OS" == macOS ]]; then
+              cp "$BUILD_DIR/$ARTIFACT_PATH" "$stage/package.dylib"
+            else
+              cp "$BUILD_DIR/$ARTIFACT_PATH" "$stage/package.so"
+            fi
+            "$MOG_RUNTIME" validate-package "$stage"
+            sed -e "s|__PACKAGE_NAME__|$PACKAGE_NAME|g" \
+                -e "s|__PACKAGE_MODULE__|$module|g" \
+                -e "s|__PACKAGE_VERSION__|$version|g" \
+                -e "s|__PACKAGE_PATH__|$stage|g" \
+                "$PACKAGE_DIR/$TEST_FIXTURE" > "$project/mog.toml"
+            cd "$project"
+            MOG_CACHE_DIR="$RUNNER_TEMP/mog-cache" "$MOG_RUNTIME" run "$stage/tests/main.mog"
+          fi
+
+  validate:
+    if: always()
+    needs: [matrix, compatibility]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require compatibility matrix
+        env:
+          MATRIX_RESULT: ${{ needs.matrix.result }}
+          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
+        run: test "$MATRIX_RESULT" = success && test "$COMPATIBILITY_RESULT" = success

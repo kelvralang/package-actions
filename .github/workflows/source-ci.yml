@@ -1,0 +1,157 @@
+name: Source package CI
+
+on:
+  workflow_call:
+    inputs:
+      package_name:
+        description: Package manifest name.
+        required: true
+        type: string
+      runtime_ref:
+        description: moglang/mog Git ref to build and test against.
+        default: main
+        type: string
+      working_directory:
+        description: Package directory within the caller repository.
+        default: .
+        type: string
+      test_fixture:
+        description: Project manifest template used for the isolated path-dependency test.
+        default: .github/package-test.toml.in
+        type: string
+      test_command:
+        description: Optional package-specific shell command run after the standard isolated test.
+        default: ""
+        type: string
+      system_dependencies_command:
+        description: Optional shell command that installs package-specific system dependencies.
+        default: ""
+        type: string
+      runtime_cmake_flags:
+        description: Additional whitespace-separated CMake flags for the Mog runtime.
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    name: Mog ${{ inputs.runtime_ref }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PACKAGE_NAME: ${{ inputs.package_name }}
+      WORKING_DIRECTORY: ${{ inputs.working_directory }}
+      TEST_FIXTURE: ${{ inputs.test_fixture }}
+      TEST_COMMAND: ${{ inputs.test_command }}
+      SYSTEM_DEPENDENCIES_COMMAND: ${{ inputs.system_dependencies_command }}
+      RUNTIME_CMAKE_FLAGS: ${{ inputs.runtime_cmake_flags }}
+    steps:
+      - name: Check out package
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Check out Mog runtime
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          repository: moglang/mog
+          ref: ${{ inputs.runtime_ref }}
+          path: .package-actions-runtime/mog
+      - name: Verify package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$WORKING_DIRECTORY"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          test -n "$version"
+          test "$name" = "$PACKAGE_NAME"
+          test "$kind" = source
+          test -f LICENSE
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f package.api.mog
+          test -f tests/main.mog
+          grep -Fq "## $version" CHANGELOG.md
+          grep -q '^```mog' README.md
+          case "$license" in
+            GPL-3.0-only) grep -Fq "GNU GENERAL PUBLIC LICENSE" LICENSE ;;
+            MIT) grep -Fq "MIT License" LICENSE ;;
+            *) echo "Unsupported or unchecked license declaration: $license" >&2; exit 1 ;;
+          esac
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            test "${GITHUB_REF_NAME#v}" = "$version"
+          fi
+      - name: Install system dependencies
+        if: inputs.system_dependencies_command != ''
+        shell: bash
+        run: bash -euo pipefail -c "$SYSTEM_DEPENDENCIES_COMMAND"
+      - name: Build Mog runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -a extra_flags <<< "$RUNTIME_CMAKE_FLAGS"
+          cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
+          cmake --build .package-actions-runtime/mog/build --parallel
+      - name: Stage and validate package
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="$GITHUB_WORKSPACE/$WORKING_DIRECTORY"
+          runtime="$GITHUB_WORKSPACE/.package-actions-runtime/mog/build/interpreter"
+          module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
+          test -n "$module"
+          stage="$RUNNER_TEMP/packages/$module"
+          mkdir -p "$(dirname "$stage")"
+          rsync -a --exclude .git --exclude .package-actions-runtime --exclude build "$package_dir/" "$stage/"
+          "$runtime" validate-package "$stage"
+          {
+            echo "runtime=$runtime"
+            echo "stage=$stage"
+            echo "version=$version"
+            echo "module=$module"
+          } >> "$GITHUB_OUTPUT"
+      - name: Run standard isolated package test
+        shell: bash
+        env:
+          MOG_RUNTIME: ${{ steps.stage.outputs.runtime }}
+          PACKAGE_STAGE: ${{ steps.stage.outputs.stage }}
+          PACKAGE_VERSION: ${{ steps.stage.outputs.version }}
+          PACKAGE_MODULE: ${{ steps.stage.outputs.module }}
+        run: |
+          set -euo pipefail
+          package_dir="$GITHUB_WORKSPACE/$WORKING_DIRECTORY"
+          project="$RUNNER_TEMP/package-test"
+          mkdir -p "$project"
+          sed -e "s|__PACKAGE_NAME__|$PACKAGE_NAME|g" \
+              -e "s|__PACKAGE_MODULE__|$PACKAGE_MODULE|g" \
+              -e "s|__PACKAGE_VERSION__|$PACKAGE_VERSION|g" \
+              -e "s|__PACKAGE_PATH__|$PACKAGE_STAGE|g" \
+              "$package_dir/$TEST_FIXTURE" > "$project/mog.toml"
+          cd "$project"
+          MOG_CACHE_DIR="$RUNNER_TEMP/mog-cache" "$MOG_RUNTIME" run "$PACKAGE_STAGE/tests/main.mog"
+      - name: Run additional package-specific test command
+        if: inputs.test_command != ''
+        shell: bash
+        env:
+          MOG_RUNTIME: ${{ steps.stage.outputs.runtime }}
+          PACKAGE_STAGE: ${{ steps.stage.outputs.stage }}
+          PACKAGE_VERSION: ${{ steps.stage.outputs.version }}
+          PACKAGE_MODULE: ${{ steps.stage.outputs.module }}
+        working-directory: ${{ inputs.working_directory }}
+        run: bash -euo pipefail -c "$TEST_COMMAND"
+
+  validate:
+    if: always()
+    needs: compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require compatibility test
+        env:
+          RESULT: ${{ needs.compatibility.result }}
+        run: test "$RESULT" = success

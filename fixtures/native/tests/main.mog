@@ -1,0 +1,5 @@
+const fixture = @import("github.com/moglang/package-actions-native-fixture")
+
+if (fixture.fixtureGreeting() != "native workflow fixture") {
+    error("native reusable workflow fixture")
+}

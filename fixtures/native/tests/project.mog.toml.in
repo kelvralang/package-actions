@@ -1,0 +1,6 @@
+kind = "project"
+name = "native-workflow-fixture-test"
+version = "0.0.0"
+
+[dependencies]
+"github.com/moglang/package-actions-native-fixture" = { path = "__PACKAGE_PATH__", version = "0.1.0" }

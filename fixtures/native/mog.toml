@@ -1,0 +1,17 @@
+kind = "native"
+module = "github.com/moglang/package-actions-native-fixture"
+import_name = "package_actions_native_fixture"
+namespace = "github"
+name = "package-actions-native-fixture"
+version = "0.1.0"
+license = "GPL-3.0-only"
+abi_version = 3
+mog_runtime = "^0.1.5"
+author = "Mog contributors"
+description = "Fixture for the reusable Mog native-package workflows."
+repository = "https://github.com/moglang/package-actions"
+dependencies = []
+
+[native]
+build = "cmake"
+targets = ["linux-x86_64-gnu", "linux-arm64-gnu", "macos-arm64"]

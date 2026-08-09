@@ -1,0 +1,43 @@
+name: Reusable workflow fixtures
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-ci:
+    uses: ./.github/workflows/source-ci.yml
+    with:
+      package_name: package-actions-source-fixture
+      working_directory: fixtures/source
+      test_fixture: package-test.toml.in
+
+  source-release:
+    uses: ./.github/workflows/source-release.yml
+    with:
+      package_name: package-actions-source-fixture
+      working_directory: fixtures/source
+      test_fixture: package-test.toml.in
+      publish_release: false
+
+  native-ci:
+    uses: ./.github/workflows/native-ci.yml
+    with:
+      package_name: package-actions-native-fixture
+      working_directory: fixtures/native
+      test_fixture: tests/project.mog.toml.in
+      targets: '["linux-x86_64-gnu","linux-arm64-gnu","macos-arm64"]'
+
+  native-release:
+    uses: ./.github/workflows/native-release.yml
+    with:
+      package_name: package-actions-native-fixture
+      working_directory: fixtures/native
+      test_fixture: tests/project.mog.toml.in
+      targets: '["linux-x86_64-gnu","linux-arm64-gnu","macos-arm64"]'
+      publish_release: false

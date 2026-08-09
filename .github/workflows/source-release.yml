@@ -1,0 +1,155 @@
+name: Source package release
+
+on:
+  workflow_call:
+    inputs:
+      package_name:
+        required: true
+        type: string
+      runtime_ref:
+        default: main
+        type: string
+      working_directory:
+        default: .
+        type: string
+      test_fixture:
+        default: .github/package-test.toml.in
+        type: string
+      test_command:
+        default: ""
+        type: string
+      system_dependencies_command:
+        default: ""
+        type: string
+      runtime_cmake_flags:
+        default: ""
+        type: string
+      publish_release:
+        description: Publish a GitHub Release. Set false only in contract fixtures.
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    env:
+      PACKAGE_NAME: ${{ inputs.package_name }}
+      WORKING_DIRECTORY: ${{ inputs.working_directory }}
+      TEST_FIXTURE: ${{ inputs.test_fixture }}
+      TEST_COMMAND: ${{ inputs.test_command }}
+      SYSTEM_DEPENDENCIES_COMMAND: ${{ inputs.system_dependencies_command }}
+      RUNTIME_CMAKE_FLAGS: ${{ inputs.runtime_cmake_flags }}
+    steps:
+      - name: Check out package
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Check out Mog runtime
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          repository: moglang/mog
+          ref: ${{ inputs.runtime_ref }}
+          path: .package-actions-runtime/mog
+      - name: Verify release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$WORKING_DIRECTORY"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          test -n "$version"
+          test "$name" = "$PACKAGE_NAME"
+          test "$kind" = source
+          test -f LICENSE
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f package.api.mog
+          test -f tests/main.mog
+          grep -Fq "## $version" CHANGELOG.md
+          grep -q '^```mog' README.md
+          case "$license" in
+            GPL-3.0-only) grep -Fq "GNU GENERAL PUBLIC LICENSE" LICENSE ;;
+            MIT) grep -Fq "MIT License" LICENSE ;;
+            *) echo "Unsupported or unchecked license declaration: $license" >&2; exit 1 ;;
+          esac
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            test "${GITHUB_REF_NAME#v}" = "$version"
+          elif [[ "${{ inputs.publish_release }}" == true ]]; then
+            echo "Publishing requires a v* tag ref." >&2
+            exit 1
+          fi
+      - name: Install system dependencies
+        if: inputs.system_dependencies_command != ''
+        shell: bash
+        run: bash -euo pipefail -c "$SYSTEM_DEPENDENCIES_COMMAND"
+      - name: Build Mog runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -a extra_flags <<< "$RUNTIME_CMAKE_FLAGS"
+          cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
+          cmake --build .package-actions-runtime/mog/build --parallel
+      - name: Stage, validate, and test package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="$GITHUB_WORKSPACE/$WORKING_DIRECTORY"
+          runtime="$GITHUB_WORKSPACE/.package-actions-runtime/mog/build/interpreter"
+          module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
+          stage="$RUNNER_TEMP/packages/$module"
+          project="$RUNNER_TEMP/package-test"
+          mkdir -p "$(dirname "$stage")" "$project"
+          rsync -a --exclude .git --exclude .package-actions-runtime --exclude build "$package_dir/" "$stage/"
+          "$runtime" validate-package "$stage"
+          sed -e "s|__PACKAGE_NAME__|$PACKAGE_NAME|g" \
+              -e "s|__PACKAGE_MODULE__|$module|g" \
+              -e "s|__PACKAGE_VERSION__|$version|g" \
+              -e "s|__PACKAGE_PATH__|$stage|g" \
+              "$package_dir/$TEST_FIXTURE" > "$project/mog.toml"
+          (
+            cd "$project"
+            MOG_CACHE_DIR="$RUNNER_TEMP/mog-cache" "$runtime" run "$stage/tests/main.mog"
+          )
+          if [[ -n "$TEST_COMMAND" ]]; then
+            export MOG_RUNTIME="$runtime" PACKAGE_STAGE="$stage" PACKAGE_VERSION="$version" PACKAGE_MODULE="$module"
+            cd "$package_dir"
+            bash -euo pipefail -c "$TEST_COMMAND"
+          fi
+      - name: Bundle source package and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="$GITHUB_WORKSPACE/$WORKING_DIRECTORY"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
+          bundle="$RUNNER_TEMP/$PACKAGE_NAME-$version"
+          mkdir -p "$bundle" dist
+          rsync -a --exclude .git --exclude .github --exclude .package-actions-runtime --exclude build \
+            "$package_dir/" "$bundle/"
+          tar -C "$RUNNER_TEMP" -czf "dist/$PACKAGE_NAME-$version.tar.gz" "$PACKAGE_NAME-$version"
+          cd dist
+          sha256sum "$PACKAGE_NAME-$version.tar.gz" > SHA256SUMS
+      - name: Upload fixture artifacts
+        if: inputs.publish_release == false
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ inputs.package_name }}-source-release-fixture
+          path: dist/
+          if-no-files-found: error
+      - name: Publish GitHub Release
+        if: inputs.publish_release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: |
+            dist/${{ inputs.package_name }}-*.tar.gz
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

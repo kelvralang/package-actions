@@ -1,0 +1,6 @@
+kind = "project"
+name = "ci-__PACKAGE_NAME__"
+version = "0.0.0"
+
+[dependencies]
+"__PACKAGE_MODULE__" = { path = "__PACKAGE_PATH__", version = "__PACKAGE_VERSION__" }
