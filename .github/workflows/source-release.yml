@@ -92,9 +92,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          read -r -a extra_flags <<< "$RUNTIME_CMAKE_FLAGS"
-          cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
-            -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
+          if [[ -n "$RUNTIME_CMAKE_FLAGS" ]]; then
+            read -r -a extra_flags <<< "$RUNTIME_CMAKE_FLAGS"
+            cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+              -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
+          else
+            cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+              -DCMAKE_BUILD_TYPE=Release
+          fi
           cmake --build .package-actions-runtime/mog/build --parallel
       - name: Stage, validate, and test package
         shell: bash
