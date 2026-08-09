@@ -7,7 +7,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # Release fixtures do not publish, but the reusable release contract declares
+  # write permission for its real tag-publishing path.
+  contents: write
 
 jobs:
   source-ci:
