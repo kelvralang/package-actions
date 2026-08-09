@@ -47,9 +47,9 @@ jobs:
       RUNTIME_CMAKE_FLAGS: ${{ inputs.runtime_cmake_flags }}
     steps:
       - name: Check out package
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check out Mog runtime
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: moglang/mog
           ref: ${{ inputs.runtime_ref }}
@@ -143,14 +143,14 @@ jobs:
           sha256sum "$PACKAGE_NAME-$version.tar.gz" > SHA256SUMS
       - name: Upload fixture artifacts
         if: inputs.publish_release == false
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.package_name }}-source-release-fixture
           path: dist/
           if-no-files-found: error
       - name: Publish GitHub Release
         if: inputs.publish_release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: |
             dist/${{ inputs.package_name }}-*.tar.gz

@@ -85,8 +85,8 @@ jobs:
       TEST_FIXTURE: ${{ inputs.test_fixture }}
       TARGET: ${{ matrix.target }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: moglang/mog
           ref: ${{ inputs.runtime_ref }}
@@ -202,7 +202,7 @@ jobs:
             cp "$build_dir/$ARTIFACT_PATH" "$bundle/package.so"
           fi
           tar -C dist -czf "$PACKAGE_NAME-$TARGET.tar.gz" "$TARGET"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.package_name }}-${{ matrix.target }}
           path: ${{ inputs.package_name }}-${{ matrix.target }}.tar.gz
@@ -215,7 +215,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: dist
           pattern: ${{ inputs.package_name }}-*
@@ -224,14 +224,14 @@ jobs:
         run: sha256sum dist/*.tar.gz > dist/SHA256SUMS
       - name: Preserve release fixture artifacts
         if: inputs.publish_release == false
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.package_name }}-native-release-fixture
           path: dist/
           if-no-files-found: error
       - name: Publish GitHub Release
         if: inputs.publish_release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: |
             dist/*.tar.gz
