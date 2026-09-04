@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       runtime_ref:
-        description: kelvralang/mog Git ref to build and test against.
+        description: kelvralang/kelvra Git ref to build and test against.
         default: main
         type: string
       targets:
@@ -92,7 +92,7 @@ jobs:
       - name: Check out Kelvra runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: kelvralang/mog
+          repository: kelvralang/kelvra
           ref: ${{ inputs.runtime_ref }}
           path: .package-actions-runtime/kelvra
       - name: Verify package metadata

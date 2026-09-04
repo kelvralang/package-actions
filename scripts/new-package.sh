@@ -103,7 +103,7 @@ while IFS= read -r -d '' file; do
       s/\bpackageTemplate\b/$ENV{BOOTSTRAP_NEW_VARIABLE}/g;
       s{github\.com/kelvralang/\Q$ENV{BOOTSTRAP_NEW_NAME}\E}{github.com/$ENV{BOOTSTRAP_ORG}/$ENV{BOOTSTRAP_NEW_NAME}}g;
       s{runtime_ref: main}{runtime_ref: $ENV{BOOTSTRAP_RUNTIME_REF}}g;
-      s{repository: kelvralang/mog\n          ref: main}{repository: kelvralang/mog\n          ref: $ENV{BOOTSTRAP_RUNTIME_REF}}g;
+      s{repository: kelvralang/kelvra\n          ref: main}{repository: kelvralang/kelvra\n          ref: $ENV{BOOTSTRAP_RUNTIME_REF}}g;
     ' "$file"
 done < <(git grep -Ilz -e "$TEMPLATE_NAME" -e "$TEMPLATE_IDENTIFIER" -e 'ref: main')
 
@@ -112,7 +112,7 @@ if [[ -z "$KELVRA_RUNTIME" ]]; then
         KELVRA_RUNTIME="$(command -v kelvra)"
     else
         echo "Building Kelvra main for local validation"
-        gh repo clone kelvralang/mog "$WORK/kelvra"
+        gh repo clone kelvralang/kelvra "$WORK/kelvra"
         cmake -S "$WORK/kelvra" -B "$WORK/kelvra/build" -DCMAKE_BUILD_TYPE=Release
         cmake --build "$WORK/kelvra/build" --parallel
         KELVRA_RUNTIME="$WORK/kelvra/build/kelvra"
