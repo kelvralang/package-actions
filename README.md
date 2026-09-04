@@ -1,12 +1,12 @@
-# Mog package actions
+# Kelvra package actions
 
-Versioned reusable GitHub Actions workflows for Mog source and native package
+Versioned reusable GitHub Actions workflows for Kelvra source and native package
 repositories. Package repositories intentionally pin the stable major contract:
 
 ```yaml
 jobs:
   ci:
-    uses: moglang/package-actions/.github/workflows/source-ci.yml@v1
+    uses: kelvralang/package-actions/.github/workflows/source-ci.yml@v2
     with:
       package_name: my-package
       runtime_ref: main
@@ -21,7 +21,7 @@ The four public workflows are:
   target matrix.
 - `native-release.yml`: target artifacts, checksums, and GitHub Release.
 
-Native `targets` is a JSON array. Version 1 maps `linux-x86_64-gnu`,
+Native `targets` is a JSON array. Version 2 maps `linux-x86_64-gnu`,
 `linux-arm64-gnu`, and `macos-arm64` to GitHub-hosted runners. Package-specific
 setup, CMake flags, test commands, working directories, and artifact paths are
 explicit optional inputs; defaults match the template repositories.
@@ -36,9 +36,9 @@ GitHub Release. Run the Linux fixtures locally with:
 ./scripts/test-contract.sh
 ```
 
-Release immutable contract tags such as `v1.0.0` only after the fixture workflow
-passes. Move the `v1` major tag to that exact tested commit after the immutable
-tag and GitHub Release exist. Packages consume `@v1`; they never consume
+Release immutable contract tags such as `v2.0.0` only after the fixture workflow
+passes. Move the `v2` major tag to that exact tested commit after the immutable
+tag and GitHub Release exist. Packages consume `@v2`; they never consume
 `@main`.
 
 The guarded release helper enforces a clean `main`, an exact match with
@@ -46,7 +46,7 @@ The guarded release helper enforces a clean `main`, an exact match with
 creates the immutable release and advances the major tag:
 
 ```sh
-./scripts/release-v1.sh v1.0.0
+./scripts/release-v2.sh v2.0.0
 ```
 
 ## Bootstrap a package
@@ -59,5 +59,5 @@ creates the immutable release and advances the major tag:
 The command creates an independent repository from the relevant GitHub
 template, rewrites the package/module identifiers and caller inputs, applies
 the standard repository settings and `main` protection, validates locally, and
-opens the initial setup pull request. Pass `--mog /path/to/interpreter` to avoid
-building Mog `main` for validation.
+opens the initial setup pull request. Pass `--kelvra /path/to/kelvra` to avoid
+building Kelvra `main` for validation.

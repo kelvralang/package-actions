@@ -48,31 +48,31 @@ jobs:
     steps:
       - name: Check out package
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Check out Mog runtime
+      - name: Check out Kelvra runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: moglang/mog
+          repository: kelvralang/mog
           ref: ${{ inputs.runtime_ref }}
-          path: .package-actions-runtime/mog
+          path: .package-actions-runtime/kelvra
       - name: Verify release metadata
         shell: bash
         run: |
           set -euo pipefail
           cd "$WORKING_DIRECTORY"
-          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
           test -n "$version"
           test "$name" = "$PACKAGE_NAME"
           test "$kind" = source
           test -f LICENSE
           test -f README.md
           test -f CHANGELOG.md
-          test -f package.api.mog
-          test -f tests/main.mog
+          test -f package.api.kel
+          test -f tests/main.kel
           grep -Fq "## $version" CHANGELOG.md
-          grep -q '^```mog' README.md
+          grep -q '^```kelvra' README.md
           case "$license" in
             GPL-3.0-only) grep -Fq "GNU GENERAL PUBLIC LICENSE" LICENSE ;;
             MIT) grep -Fq "MIT License" LICENSE ;;
@@ -88,27 +88,27 @@ jobs:
         if: inputs.system_dependencies_command != ''
         shell: bash
         run: bash -euo pipefail -c "$SYSTEM_DEPENDENCIES_COMMAND"
-      - name: Build Mog runtime
+      - name: Build Kelvra runtime
         shell: bash
         run: |
           set -euo pipefail
           if [[ -n "$RUNTIME_CMAKE_FLAGS" ]]; then
             read -r -a extra_flags <<< "$RUNTIME_CMAKE_FLAGS"
-            cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            cmake -S .package-actions-runtime/kelvra -B .package-actions-runtime/kelvra/build \
               -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
           else
-            cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            cmake -S .package-actions-runtime/kelvra -B .package-actions-runtime/kelvra/build \
               -DCMAKE_BUILD_TYPE=Release
           fi
-          cmake --build .package-actions-runtime/mog/build --parallel
+          cmake --build .package-actions-runtime/kelvra/build --parallel
       - name: Stage, validate, and test package
         shell: bash
         run: |
           set -euo pipefail
           package_dir="$GITHUB_WORKSPACE/$WORKING_DIRECTORY"
-          runtime="$GITHUB_WORKSPACE/.package-actions-runtime/mog/build/interpreter"
-          module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
-          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
+          runtime="$GITHUB_WORKSPACE/.package-actions-runtime/kelvra/build/kelvra"
+          module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$package_dir/kelvra.toml" | head -n 1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/kelvra.toml" | head -n 1)"
           stage="$RUNNER_TEMP/packages/$module"
           project="$RUNNER_TEMP/package-test"
           mkdir -p "$(dirname "$stage")" "$project"
@@ -118,13 +118,13 @@ jobs:
               -e "s|__PACKAGE_MODULE__|$module|g" \
               -e "s|__PACKAGE_VERSION__|$version|g" \
               -e "s|__PACKAGE_PATH__|$stage|g" \
-              "$package_dir/$TEST_FIXTURE" > "$project/mog.toml"
+              "$package_dir/$TEST_FIXTURE" > "$project/kelvra.toml"
           (
             cd "$project"
-            MOG_CACHE_DIR="$RUNNER_TEMP/mog-cache" "$runtime" run "$stage/tests/main.mog"
+            KELVRA_CACHE_DIR="$RUNNER_TEMP/kelvra-cache" "$runtime" run "$stage/tests/main.kel"
           )
           if [[ -n "$TEST_COMMAND" ]]; then
-            export MOG_RUNTIME="$runtime" PACKAGE_STAGE="$stage" PACKAGE_VERSION="$version" PACKAGE_MODULE="$module"
+            export KELVRA_RUNTIME="$runtime" PACKAGE_STAGE="$stage" PACKAGE_VERSION="$version" PACKAGE_MODULE="$module"
             cd "$package_dir"
             bash -euo pipefail -c "$TEST_COMMAND"
           fi
@@ -133,7 +133,7 @@ jobs:
         run: |
           set -euo pipefail
           package_dir="$GITHUB_WORKSPACE/$WORKING_DIRECTORY"
-          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/kelvra.toml" | head -n 1)"
           bundle="$RUNNER_TEMP/$PACKAGE_NAME-$version"
           mkdir -p "$bundle" dist
           rsync -a --exclude .git --exclude .github --exclude .package-actions-runtime --exclude build \

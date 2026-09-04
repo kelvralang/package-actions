@@ -32,7 +32,7 @@ jobs:
     with:
       package_name: package-actions-native-fixture
       working_directory: fixtures/native
-      test_fixture: tests/project.mog.toml.in
+      test_fixture: tests/project.kel.toml.in
       targets: '["linux-x86_64-gnu","linux-arm64-gnu","macos-arm64"]'
 
   native-release:
@@ -40,6 +40,6 @@ jobs:
     with:
       package_name: package-actions-native-fixture
       working_directory: fixtures/native
-      test_fixture: tests/project.mog.toml.in
+      test_fixture: tests/project.kel.toml.in
       targets: '["linux-x86_64-gnu","linux-arm64-gnu","macos-arm64"]'
       publish_release: false

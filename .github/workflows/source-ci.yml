@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       runtime_ref:
-        description: moglang/mog Git ref to build and test against.
+        description: kelvralang/mog Git ref to build and test against.
         default: main
         type: string
       working_directory:
@@ -28,7 +28,7 @@ on:
         default: ""
         type: string
       runtime_cmake_flags:
-        description: Additional whitespace-separated CMake flags for the Mog runtime.
+        description: Additional whitespace-separated CMake flags for the Kelvra runtime.
         default: ""
         type: string
 
@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   compatibility:
-    name: Mog ${{ inputs.runtime_ref }}
+    name: Kelvra ${{ inputs.runtime_ref }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -50,31 +50,31 @@ jobs:
     steps:
       - name: Check out package
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Check out Mog runtime
+      - name: Check out Kelvra runtime
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: moglang/mog
+          repository: kelvralang/mog
           ref: ${{ inputs.runtime_ref }}
-          path: .package-actions-runtime/mog
+          path: .package-actions-runtime/kelvra
       - name: Verify package metadata
         shell: bash
         run: |
           set -euo pipefail
           cd "$WORKING_DIRECTORY"
-          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
           test -n "$version"
           test "$name" = "$PACKAGE_NAME"
           test "$kind" = source
           test -f LICENSE
           test -f README.md
           test -f CHANGELOG.md
-          test -f package.api.mog
-          test -f tests/main.mog
+          test -f package.api.kel
+          test -f tests/main.kel
           grep -Fq "## $version" CHANGELOG.md
-          grep -q '^```mog' README.md
+          grep -q '^```kelvra' README.md
           case "$license" in
             GPL-3.0-only) grep -Fq "GNU GENERAL PUBLIC LICENSE" LICENSE ;;
             MIT) grep -Fq "MIT License" LICENSE ;;
@@ -87,28 +87,28 @@ jobs:
         if: inputs.system_dependencies_command != ''
         shell: bash
         run: bash -euo pipefail -c "$SYSTEM_DEPENDENCIES_COMMAND"
-      - name: Build Mog runtime
+      - name: Build Kelvra runtime
         shell: bash
         run: |
           set -euo pipefail
           if [[ -n "$RUNTIME_CMAKE_FLAGS" ]]; then
             read -r -a extra_flags <<< "$RUNTIME_CMAKE_FLAGS"
-            cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            cmake -S .package-actions-runtime/kelvra -B .package-actions-runtime/kelvra/build \
               -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
           else
-            cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            cmake -S .package-actions-runtime/kelvra -B .package-actions-runtime/kelvra/build \
               -DCMAKE_BUILD_TYPE=Release
           fi
-          cmake --build .package-actions-runtime/mog/build --parallel
+          cmake --build .package-actions-runtime/kelvra/build --parallel
       - name: Stage and validate package
         id: stage
         shell: bash
         run: |
           set -euo pipefail
           package_dir="$GITHUB_WORKSPACE/$WORKING_DIRECTORY"
-          runtime="$GITHUB_WORKSPACE/.package-actions-runtime/mog/build/interpreter"
-          module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
-          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/mog.toml" | head -n 1)"
+          runtime="$GITHUB_WORKSPACE/.package-actions-runtime/kelvra/build/kelvra"
+          module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$package_dir/kelvra.toml" | head -n 1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/kelvra.toml" | head -n 1)"
           test -n "$module"
           stage="$RUNNER_TEMP/packages/$module"
           mkdir -p "$(dirname "$stage")"
@@ -123,7 +123,7 @@ jobs:
       - name: Run standard isolated package test
         shell: bash
         env:
-          MOG_RUNTIME: ${{ steps.stage.outputs.runtime }}
+          KELVRA_RUNTIME: ${{ steps.stage.outputs.runtime }}
           PACKAGE_STAGE: ${{ steps.stage.outputs.stage }}
           PACKAGE_VERSION: ${{ steps.stage.outputs.version }}
           PACKAGE_MODULE: ${{ steps.stage.outputs.module }}
@@ -136,14 +136,14 @@ jobs:
               -e "s|__PACKAGE_MODULE__|$PACKAGE_MODULE|g" \
               -e "s|__PACKAGE_VERSION__|$PACKAGE_VERSION|g" \
               -e "s|__PACKAGE_PATH__|$PACKAGE_STAGE|g" \
-              "$package_dir/$TEST_FIXTURE" > "$project/mog.toml"
+              "$package_dir/$TEST_FIXTURE" > "$project/kelvra.toml"
           cd "$project"
-          MOG_CACHE_DIR="$RUNNER_TEMP/mog-cache" "$MOG_RUNTIME" run "$PACKAGE_STAGE/tests/main.mog"
+          KELVRA_CACHE_DIR="$RUNNER_TEMP/kelvra-cache" "$KELVRA_RUNTIME" run "$PACKAGE_STAGE/tests/main.kel"
       - name: Run additional package-specific test command
         if: inputs.test_command != ''
         shell: bash
         env:
-          MOG_RUNTIME: ${{ steps.stage.outputs.runtime }}
+          KELVRA_RUNTIME: ${{ steps.stage.outputs.runtime }}
           PACKAGE_STAGE: ${{ steps.stage.outputs.stage }}
           PACKAGE_VERSION: ${{ steps.stage.outputs.version }}
           PACKAGE_MODULE: ${{ steps.stage.outputs.module }}

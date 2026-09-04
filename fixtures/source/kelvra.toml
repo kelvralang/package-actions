@@ -1,0 +1,13 @@
+kind = "source"
+module = "github.com/kelvralang/package-actions-source-fixture"
+import_name = "package_actions_source_fixture"
+namespace = "github"
+name = "package-actions-source-fixture"
+version = "0.2.0"
+license = "GPL-3.0-only"
+kelvra_runtime = "^0.2.0"
+author = "Kelvra contributors"
+description = "Fixture for the reusable Kelvra source-package workflows."
+repository = "https://github.com/kelvralang/package-actions"
+entry = "src/main.kel"
+dependencies = []

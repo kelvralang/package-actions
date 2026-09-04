@@ -1,15 +1,15 @@
 kind = "native"
-module = "github.com/moglang/package-actions-native-fixture"
+module = "github.com/kelvralang/package-actions-native-fixture"
 import_name = "package_actions_native_fixture"
 namespace = "github"
 name = "package-actions-native-fixture"
-version = "0.1.0"
+version = "0.2.0"
 license = "GPL-3.0-only"
 abi_version = 3
-mog_runtime = "^0.1.5"
-author = "Mog contributors"
-description = "Fixture for the reusable Mog native-package workflows."
-repository = "https://github.com/moglang/package-actions"
+kelvra_runtime = "^0.2.0"
+author = "Kelvra contributors"
+description = "Fixture for the reusable Kelvra native-package workflows."
+repository = "https://github.com/kelvralang/package-actions"
 dependencies = []
 
 [native]

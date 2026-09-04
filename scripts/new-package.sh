@@ -5,24 +5,24 @@ usage() {
     cat <<'USAGE'
 usage: new-package.sh [options] NAME
 
-Create and customize an independent Mog package repository, validate it, and
+Create and customize an independent Kelvra package repository, validate it, and
 open the initial setup pull request.
 
 Options:
-  --native                 Use moglang/native-package-template.
-  --org ORG                Destination GitHub organization (default: moglang).
+  --native                 Use kelvralang/native-package-template.
+  --org ORG                Destination GitHub organization (default: kelvralang).
   --runtime-ref REF        Runtime ref placed in workflow callers (default: main).
   --visibility VALUE       public or private (default: public).
-  --mog PATH               Existing Mog interpreter used for validation.
+  --kelvra PATH               Existing Kelvra interpreter used for validation.
   -h, --help               Show this help.
 USAGE
 }
 
 KIND=source
-ORG=moglang
+ORG=kelvralang
 RUNTIME_REF=main
 VISIBILITY=public
-MOG_RUNTIME=""
+KELVRA_RUNTIME=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
         --org) ORG="${2:?--org requires a value}"; shift 2 ;;
         --runtime-ref) RUNTIME_REF="${2:?--runtime-ref requires a value}"; shift 2 ;;
         --visibility) VISIBILITY="${2:?--visibility requires a value}"; shift 2 ;;
-        --mog) MOG_RUNTIME="${2:?--mog requires a value}"; shift 2 ;;
+        --kelvra) KELVRA_RUNTIME="${2:?--kelvra requires a value}"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         --*) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
         *)
@@ -61,17 +61,17 @@ fi
 command -v gh >/dev/null || { echo "gh is required" >&2; exit 1; }
 command -v git >/dev/null || { echo "git is required" >&2; exit 1; }
 command -v cmake >/dev/null || { echo "cmake is required" >&2; exit 1; }
-if [[ -n "$MOG_RUNTIME" ]]; then
-    MOG_RUNTIME="$(cd "$(dirname "$MOG_RUNTIME")" && pwd)/$(basename "$MOG_RUNTIME")"
-    [[ -x "$MOG_RUNTIME" ]] || { echo "Mog interpreter is not executable: $MOG_RUNTIME" >&2; exit 1; }
+if [[ -n "$KELVRA_RUNTIME" ]]; then
+    KELVRA_RUNTIME="$(cd "$(dirname "$KELVRA_RUNTIME")" && pwd)/$(basename "$KELVRA_RUNTIME")"
+    [[ -x "$KELVRA_RUNTIME" ]] || { echo "Kelvra interpreter is not executable: $KELVRA_RUNTIME" >&2; exit 1; }
 fi
 
 if [[ "$KIND" == native ]]; then
-    TEMPLATE=moglang/native-package-template
+    TEMPLATE=kelvralang/native-package-template
     TEMPLATE_NAME=native-package-template
     TEMPLATE_IDENTIFIER=native_package_template
 else
-    TEMPLATE=moglang/package-template
+    TEMPLATE=kelvralang/package-template
     TEMPLATE_NAME=package-template
     TEMPLATE_IDENTIFIER=package_template
 fi
@@ -101,42 +101,42 @@ while IFS= read -r -d '' file; do
       s/\Q$ENV{BOOTSTRAP_OLD_IDENTIFIER}\E/$ENV{BOOTSTRAP_NEW_IDENTIFIER}/g;
       s/\Q$ENV{BOOTSTRAP_OLD_NAME}\E/$ENV{BOOTSTRAP_NEW_NAME}/g;
       s/\bpackageTemplate\b/$ENV{BOOTSTRAP_NEW_VARIABLE}/g;
-      s{github\.com/moglang/\Q$ENV{BOOTSTRAP_NEW_NAME}\E}{github.com/$ENV{BOOTSTRAP_ORG}/$ENV{BOOTSTRAP_NEW_NAME}}g;
+      s{github\.com/kelvralang/\Q$ENV{BOOTSTRAP_NEW_NAME}\E}{github.com/$ENV{BOOTSTRAP_ORG}/$ENV{BOOTSTRAP_NEW_NAME}}g;
       s{runtime_ref: main}{runtime_ref: $ENV{BOOTSTRAP_RUNTIME_REF}}g;
-      s{repository: moglang/mog\n          ref: main}{repository: moglang/mog\n          ref: $ENV{BOOTSTRAP_RUNTIME_REF}}g;
+      s{repository: kelvralang/mog\n          ref: main}{repository: kelvralang/mog\n          ref: $ENV{BOOTSTRAP_RUNTIME_REF}}g;
     ' "$file"
 done < <(git grep -Ilz -e "$TEMPLATE_NAME" -e "$TEMPLATE_IDENTIFIER" -e 'ref: main')
 
-if [[ -z "$MOG_RUNTIME" ]]; then
-    if command -v mog >/dev/null 2>&1; then
-        MOG_RUNTIME="$(command -v mog)"
+if [[ -z "$KELVRA_RUNTIME" ]]; then
+    if command -v kelvra >/dev/null 2>&1; then
+        KELVRA_RUNTIME="$(command -v kelvra)"
     else
-        echo "Building Mog main for local validation"
-        gh repo clone moglang/mog "$WORK/mog"
-        cmake -S "$WORK/mog" -B "$WORK/mog/build" -DCMAKE_BUILD_TYPE=Release
-        cmake --build "$WORK/mog/build" --parallel
-        MOG_RUNTIME="$WORK/mog/build/interpreter"
+        echo "Building Kelvra main for local validation"
+        gh repo clone kelvralang/mog "$WORK/kelvra"
+        cmake -S "$WORK/kelvra" -B "$WORK/kelvra/build" -DCMAKE_BUILD_TYPE=Release
+        cmake --build "$WORK/kelvra/build" --parallel
+        KELVRA_RUNTIME="$WORK/kelvra/build/kelvra"
     fi
 fi
-MOG_RUNTIME="$(cd "$(dirname "$MOG_RUNTIME")" && pwd)/$(basename "$MOG_RUNTIME")"
+KELVRA_RUNTIME="$(cd "$(dirname "$KELVRA_RUNTIME")" && pwd)/$(basename "$KELVRA_RUNTIME")"
 
 if [[ "$KIND" == native ]]; then
-    ./tests/test_native_package.sh "$MOG_RUNTIME" .
+    ./tests/test_native_package.sh "$KELVRA_RUNTIME" .
 else
     STAGE="$WORK/stage/github.com/$ORG/$NAME"
     PROJECT="$WORK/project"
     mkdir -p "$STAGE" "$PROJECT"
     rsync -a --exclude .git ./ "$STAGE/"
-    "$MOG_RUNTIME" validate-package "$STAGE"
-    VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+    "$KELVRA_RUNTIME" validate-package "$STAGE"
+    VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
     sed -e "s|__PACKAGE_NAME__|$NAME|g" \
         -e "s|__PACKAGE_MODULE__|github.com/$ORG/$NAME|g" \
         -e "s|__PACKAGE_VERSION__|$VERSION|g" \
         -e "s|__PACKAGE_PATH__|$STAGE|g" \
-        .github/package-test.toml.in > "$PROJECT/mog.toml"
+        .github/package-test.toml.in > "$PROJECT/kelvra.toml"
     (
         cd "$PROJECT"
-        MOG_CACHE_DIR="$WORK/cache" "$MOG_RUNTIME" run "$STAGE/tests/main.mog"
+        KELVRA_CACHE_DIR="$WORK/cache" "$KELVRA_RUNTIME" run "$STAGE/tests/main.kel"
     )
 fi
 

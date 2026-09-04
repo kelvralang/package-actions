@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 || ! "$1" =~ ^v1\.[0-9]+\.[0-9]+$ ]]; then
-    echo "usage: release-v1.sh v1.MINOR.PATCH" >&2
+if [[ $# -ne 1 || ! "$1" =~ ^v2\.[0-9]+\.[0-9]+$ ]]; then
+    echo "usage: release-v2.sh v2.MINOR.PATCH" >&2
     exit 2
 fi
 
@@ -31,12 +31,12 @@ SUCCESS_SHA="$(gh run list --workflow fixtures.yml --branch main --status succes
     exit 1
 }
 
-git tag -a "$VERSION" -m "Mog package actions $VERSION"
+git tag -a "$VERSION" -m "Kelvra package actions $VERSION"
 git push origin "$VERSION"
 gh release create "$VERSION" --verify-tag --generate-notes \
-    --title "Mog package actions $VERSION"
+    --title "Kelvra package actions $VERSION"
 
-git tag -f -a v1 -m "Mog package actions v1" "$HEAD_SHA"
-git push --force origin refs/tags/v1
+git tag -f -a v2 -m "Kelvra package actions v2" "$HEAD_SHA"
+git push --force origin refs/tags/v2
 
-echo "Published immutable $VERSION and advanced v1 to $HEAD_SHA"
+echo "Published immutable $VERSION and advanced v2 to $HEAD_SHA"
