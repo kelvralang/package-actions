@@ -157,7 +157,7 @@ jobs:
       - name: Validate and test package
         shell: bash
         env:
-          KELVRA_RUNTIME: ${{ github.workspace }}/.package-actions-runtime/kelvra/build/kelvra
+          KELVRA_RUNTIME: ${{ github.workspace }}/.package-actions-runtime/kelvra/build/interpreter
           PACKAGE_DIR: ${{ github.workspace }}/${{ inputs.working_directory }}
           BUILD_DIR: ${{ github.workspace }}/.package-actions-build/package
         run: |

@@ -106,7 +106,7 @@ jobs:
         run: |
           set -euo pipefail
           package_dir="$GITHUB_WORKSPACE/$WORKING_DIRECTORY"
-          runtime="$GITHUB_WORKSPACE/.package-actions-runtime/kelvra/build/kelvra"
+          runtime="$GITHUB_WORKSPACE/.package-actions-runtime/kelvra/build/interpreter"
           module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$package_dir/kelvra.toml" | head -n 1)"
           version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$package_dir/kelvra.toml" | head -n 1)"
           test -n "$module"
