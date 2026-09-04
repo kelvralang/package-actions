@@ -88,18 +88,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: moglang/mog
+          repository: kelvralang/kelvra
           ref: ${{ inputs.runtime_ref }}
-          path: .package-actions-runtime/mog
+          path: .package-actions-runtime/kelvra
       - name: Verify release metadata
         shell: bash
         run: |
           set -euo pipefail
           cd "$WORKING_DIRECTORY"
-          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
-          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' mog.toml | head -n 1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          kind="$(sed -n 's/^kind = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
+          license="$(sed -n 's/^license = "\([^"]*\)"/\1/p' kelvra.toml | head -n 1)"
           test -n "$version"
           test "$name" = "$PACKAGE_NAME"
           test "$kind" = native
@@ -107,11 +107,11 @@ jobs:
           test -f README.md
           test -f CHANGELOG.md
           test -f NativePackageAPI.hpp
-          test -f package.api.mog
-          test -f tests/main.mog
+          test -f package.api.kel
+          test -f tests/main.kel
           grep -Fq "## $version" CHANGELOG.md
-          grep -q '^```mog' README.md
-          grep -Fq "\"$TARGET\"" mog.toml
+          grep -q '^```kelvra' README.md
+          grep -Fq "\"$TARGET\"" kelvra.toml
           case "$license" in
             GPL-3.0-only) grep -Fq "GNU GENERAL PUBLIC LICENSE" LICENSE ;;
             MIT) grep -Fq "MIT License" LICENSE ;;
@@ -140,23 +140,23 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release
           fi
           cmake --build .package-actions-build/package --config Release --parallel
-      - name: Build Mog runtime
+      - name: Build Kelvra runtime
         shell: bash
         run: |
           set -euo pipefail
           if [[ -n "$RUNTIME_CMAKE_FLAGS" ]]; then
             read -r -a extra_flags <<< "$RUNTIME_CMAKE_FLAGS"
-            cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            cmake -S .package-actions-runtime/kelvra -B .package-actions-runtime/kelvra/build \
               -DCMAKE_BUILD_TYPE=Release "${extra_flags[@]}"
           else
-            cmake -S .package-actions-runtime/mog -B .package-actions-runtime/mog/build \
+            cmake -S .package-actions-runtime/kelvra -B .package-actions-runtime/kelvra/build \
               -DCMAKE_BUILD_TYPE=Release
           fi
-          cmake --build .package-actions-runtime/mog/build --parallel
+          cmake --build .package-actions-runtime/kelvra/build --parallel
       - name: Validate and test package
         shell: bash
         env:
-          MOG_RUNTIME: ${{ github.workspace }}/.package-actions-runtime/mog/build/interpreter
+          KELVRA_RUNTIME: ${{ github.workspace }}/.package-actions-runtime/kelvra/build/interpreter
           PACKAGE_DIR: ${{ github.workspace }}/${{ inputs.working_directory }}
           BUILD_DIR: ${{ github.workspace }}/.package-actions-build/package
         run: |
@@ -164,8 +164,8 @@ jobs:
           if [[ -n "$TEST_COMMAND" ]]; then
             bash -euo pipefail -c "$TEST_COMMAND"
           else
-            module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$PACKAGE_DIR/mog.toml" | head -n 1)"
-            version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$PACKAGE_DIR/mog.toml" | head -n 1)"
+            module="$(sed -n 's/^module = "\([^"]*\)"/\1/p' "$PACKAGE_DIR/kelvra.toml" | head -n 1)"
+            version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$PACKAGE_DIR/kelvra.toml" | head -n 1)"
             stage="$RUNNER_TEMP/packages/$module"
             project="$RUNNER_TEMP/package-test"
             mkdir -p "$(dirname "$stage")" "$project"
@@ -176,14 +176,14 @@ jobs:
             else
               cp "$BUILD_DIR/$ARTIFACT_PATH" "$stage/package.so"
             fi
-            "$MOG_RUNTIME" validate-package "$stage"
+            "$KELVRA_RUNTIME" validate-package "$stage"
             sed -e "s|__PACKAGE_NAME__|$PACKAGE_NAME|g" \
                 -e "s|__PACKAGE_MODULE__|$module|g" \
                 -e "s|__PACKAGE_VERSION__|$version|g" \
                 -e "s|__PACKAGE_PATH__|$stage|g" \
-                "$PACKAGE_DIR/$TEST_FIXTURE" > "$project/mog.toml"
+                "$PACKAGE_DIR/$TEST_FIXTURE" > "$project/kelvra.toml"
             cd "$project"
-            MOG_CACHE_DIR="$RUNNER_TEMP/mog-cache" "$MOG_RUNTIME" run "$stage/tests/main.mog"
+            KELVRA_CACHE_DIR="$RUNNER_TEMP/kelvra-cache" "$KELVRA_RUNTIME" run "$stage/tests/main.kel"
           fi
       - name: Bundle native artifact
         shell: bash
@@ -194,7 +194,7 @@ jobs:
           test -f "$build_dir/$ARTIFACT_PATH"
           bundle="dist/$TARGET"
           mkdir -p "$bundle"
-          cp "$package_dir/mog.toml" "$package_dir/package.api.mog" "$package_dir/LICENSE" \
+          cp "$package_dir/kelvra.toml" "$package_dir/package.api.kel" "$package_dir/LICENSE" \
             "$package_dir/README.md" "$package_dir/CHANGELOG.md" "$bundle/"
           if [[ "$RUNNER_OS" == macOS ]]; then
             cp "$build_dir/$ARTIFACT_PATH" "$bundle/package.dylib"

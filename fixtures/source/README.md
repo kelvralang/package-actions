@@ -2,7 +2,7 @@
 
 This package is used only to verify the reusable source-package workflows.
 
-```mog
-const fixture = @import("github.com/moglang/package-actions-source-fixture")
+```kelvra
+const fixture = @import("github.com/kelvralang/package-actions-source-fixture")
 print(fixture.fixtureGreeting())
 ```
